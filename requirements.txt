@@ -1,0 +1,4 @@
+telethon
+openai
+python-dateutil
+configparser

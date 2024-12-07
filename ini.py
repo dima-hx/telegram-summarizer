@@ -1,0 +1,61 @@
+from datetime import datetime, time, timedelta
+import asyncio
+from telethon import TelegramClient
+from telethon.sessions import StringSession
+import configparser
+import os
+
+from messages_functions import format_messages, get_chat_messages, get_output_message
+from summarizer import summarize
+
+# Read configuration from config.ini
+config = configparser.ConfigParser()
+config.read('config.ini')
+
+api_id = os.environ.get('API_ID', config['telegram']['api_id'])
+api_hash = os.environ.get('API_HASH', config['telegram']['api_hash'])
+session_name = config['telegram']['session_name']
+session_value = os.environ.get('SESSION_VALUE')
+chat_input = os.environ.get('CHAT_NAME', config['telegram']['chat_name'])
+bot_token = os.environ.get('BOT_TOKEN', config['telegram']['bot_token'])
+bot_channel = os.environ.get('BOT_CHANNEL', config['telegram']['bot_channel'])
+open_ai_key = os.environ.get('OPENAI_API_KEY', config['openai']['api_key'])
+
+async def main(chat_name):
+    client = TelegramClient(session_name if session_name else StringSession(session_value), api_id, api_hash)
+    await client.start()
+
+    chat_info = await client.get_entity(chat_name)
+    
+    #session_string = client.session.save()
+    #print("Your session string is: ", session_string)
+
+    # target_date = datetime.now().date() - timedelta(days=1)
+    # #target_date = datetime(2024, 12, 5).date()  # Specific date
+    # messages = await get_chat_messages(client, chat_info, target_date)
+    # if not messages:
+    #     print("No messages found.")
+    #     return
+    # messages.reverse()
+    # formatted_messages = await format_messages(messages)
+    # if not formatted_messages:
+    #     print("No messages found 2.")
+    #     return
+    
+    # key_topics = summarize(open_ai_key, formatted_messages)
+    # if not key_topics:
+    #     print("No key topics found.")
+    #     return
+
+    # output_message = get_output_message(key_topics, target_date, len(messages), formatted_messages)
+    
+    #Send a message to the channel
+    await client.start(bot_token=bot_token)
+    bot_channel_info = await client.get_entity(bot_channel)
+    #await client.send_message(bot_channel_info, output_message)
+    await client.send_message(bot_channel_info, 'Hello, world!')
+
+    #print(key_topics)
+
+
+asyncio.run(main(chat_name=chat_input))
