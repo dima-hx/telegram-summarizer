@@ -1,8 +1,9 @@
+from datetime import datetime
 import json
 import openai
 from typing import List
 
-prompt = f"""Here is ONE day of message history our local community chat.
+prompt = f"""Here is ONE day ([DATE]) of message history our local community chat.
 
 Your key role is to briefly summarize the day's chat history in one message with some keypoints. 
 Your choice of importance should be based on popularity of topic (discussions, comments, reactions), and on your personal belief that this is crucial for each residential member to know. 
@@ -17,10 +18,11 @@ Reply in Ukrainian language.
 ```
 """
 
-def summarize(open_ai_key: str, chat_history: str) -> List[str]:
+def summarize(open_ai_key: str, chat_history: str, date: datetime.date) -> tuple[List[str], str]:
     # Replace backticks and prepare prompt
     chat_history = chat_history.replace("`", "")
     prompt_with_history = prompt.replace("[CHAT_HISTORY]", chat_history)
+    prompt_with_history = prompt.replace("[DATE]", date)
     
     # Define function schema
     functions = [
@@ -34,9 +36,13 @@ def summarize(open_ai_key: str, chat_history: str) -> List[str]:
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "List of key topics discussed"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Title of the chat summary in ukrainian, e.g. 'Головне за 12 грудня' "
                     }
                 },
-                "required": ["key_topics"]
+                "required": ["key_topics", "title"]
             }
         }
     ]
@@ -55,4 +61,4 @@ def summarize(open_ai_key: str, chat_history: str) -> List[str]:
 
     # Parse and return the function call results
     function_args = json.loads(response.choices[0].message.function_call.arguments)
-    return function_args["key_topics"]
+    return (function_args["key_topics"], function_args["title"])

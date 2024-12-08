@@ -80,7 +80,7 @@ async def format_messages(messages):
         
     return "\n".join(formatted)
 
-def get_output_message(key_topics: List[str], date: datetime.date, raw_messages_count: int, formatted_messages: str) -> str:
+def get_output_message(key_topics: List[str], title: str, raw_messages_count: int, formatted_messages: str) -> str:
     """
     Generate the final output message with key topics, date, and message count
     
@@ -98,9 +98,12 @@ def get_output_message(key_topics: List[str], date: datetime.date, raw_messages_
     words_count = len(formatted_messages.split())
     reading_time = round(words_count / words_per_minute, 0)
 
-    time_str = f", тож ми зберегли ~{int(reading_time)} хв вашого часу" if reading_time > 2 else ""
+    time_str = f", збережено ~{int(reading_time)} хв вашого часу" if reading_time > 2 else ""
 
     key_topics_str = "\n\n".join([f" - {topic}" for topic in key_topics])
-    output_message = f"Ось що обговорювалось {date} в ЖК Евромісто:\n\n{key_topics_str}\n\n__За цей день було {raw_messages_count} повідомлень{time_str}__"
+    
+    header = title if title else "Головне за минулий день"
+
+    output_message = f"**{header}:**\n\n{key_topics_str}\n\n__За цей день було {raw_messages_count} повідомлень{time_str}__"
     return output_message
     

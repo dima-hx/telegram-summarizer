@@ -27,35 +27,35 @@ async def main(chat_name):
 
     chat_info = await client.get_entity(chat_name)
     
-    #session_string = client.session.save()
-    #print("Your session string is: ", session_string)
+    session_string = client.session.save()
+    print("Your session string is: ", session_string)
 
-    # target_date = datetime.now().date() - timedelta(days=1)
-    # #target_date = datetime(2024, 12, 5).date()  # Specific date
-    # messages = await get_chat_messages(client, chat_info, target_date)
-    # if not messages:
-    #     print("No messages found.")
-    #     return
-    # messages.reverse()
-    # formatted_messages = await format_messages(messages)
-    # if not formatted_messages:
-    #     print("No messages found 2.")
-    #     return
+    target_date = datetime.now().date() - timedelta(days=1)
+    #target_date = datetime(2024, 12, 5).date()  # Specific date
+
+    messages = await get_chat_messages(client, chat_info, target_date)
+    if not messages:
+        print("No messages found.")
+        return
+    messages.reverse()
+    formatted_messages = await format_messages(messages)
+    if not formatted_messages:
+        print("No messages found 2.")
+        return
     
-    # key_topics = summarize(open_ai_key, formatted_messages)
-    # if not key_topics:
-    #     print("No key topics found.")
-    #     return
+    (key_topics, title) = summarize(open_ai_key, formatted_messages)
+    if not key_topics:
+        print("No key topics found.")
+        return
 
-    # output_message = get_output_message(key_topics, target_date, len(messages), formatted_messages)
+    output_message = get_output_message(key_topics, title, len(messages), formatted_messages)
     
     #Send a message to the channel
     await client.start(bot_token=bot_token)
     bot_channel_info = await client.get_entity(bot_channel)
-    #await client.send_message(bot_channel_info, output_message)
-    await client.send_message(bot_channel_info, 'Hello, world!')
+    await client.send_message(bot_channel_info, output_message)
 
-    #print(key_topics)
+    print(key_topics)
 
 
 asyncio.run(main(chat_name=chat_input))
