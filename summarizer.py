@@ -3,7 +3,7 @@ import json
 import openai
 from typing import List
 
-prompt = f"""Here is ONE day ([DATE]) of message history our local community chat.
+prompt = f"""Here is ONE day (yyyy-mm-dd [DATE]) of message history our local community chat.
 
 Your key role is to briefly summarize the day's chat history in one message with some keypoints. 
 Your choice of importance should be based on popularity of topic (discussions, comments, reactions), and on your personal belief that this is crucial for each residential member to know. 
@@ -21,8 +21,7 @@ Reply in Ukrainian language.
 def summarize(open_ai_key: str, chat_history: str, date: datetime.date) -> tuple[List[str], str]:
     # Replace backticks and prepare prompt
     chat_history = chat_history.replace("`", "")
-    prompt_with_history = prompt.replace("[CHAT_HISTORY]", chat_history)
-    prompt_with_history = prompt.replace("[DATE]", date)
+    prompt_with_history = prompt.replace("[CHAT_HISTORY]", chat_history).replace("[DATE]", date.strftime("%Y-%m-%d"))
     
     # Define function schema
     functions = [
@@ -39,7 +38,7 @@ def summarize(open_ai_key: str, chat_history: str, date: datetime.date) -> tuple
                     },
                     "title": {
                         "type": "string",
-                        "description": "Title of the chat summary in ukrainian, e.g. 'Головне за 12 грудня' "
+                        "description": "Title of the chat summary in ukrainian, e.g. 'Головне за 12 грудня' but you can choose your own"
                     }
                 },
                 "required": ["key_topics", "title"]

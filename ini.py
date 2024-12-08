@@ -43,7 +43,7 @@ async def main(chat_name):
         print("No messages found 2.")
         return
     
-    (key_topics, title) = summarize(open_ai_key, formatted_messages)
+    (key_topics, title) = summarize(open_ai_key, formatted_messages, target_date)
     if not key_topics:
         print("No key topics found.")
         return
