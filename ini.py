@@ -12,14 +12,14 @@ from summarizer import summarize
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-api_id = os.environ.get('API_ID', config['telegram']['api_id'])
-api_hash = os.environ.get('API_HASH', config['telegram']['api_hash'])
-session_name = config['telegram']['session_name']
+api_id = os.environ.get('API_ID', config.get('telegram', 'api_id', fallback=None))
+api_hash = os.environ.get('API_HASH', config.get('telegram', 'api_hash', fallback=None))
+session_name = config.get('telegram', 'session_name', fallback=None)
 session_value = os.environ.get('SESSION_VALUE')
-chat_input = os.environ.get('CHAT_NAME', config['telegram']['chat_name'])
-bot_token = os.environ.get('BOT_TOKEN', config['telegram']['bot_token'])
-bot_channel = os.environ.get('BOT_CHANNEL', config['telegram']['bot_channel'])
-open_ai_key = os.environ.get('OPENAI_API_KEY', config['openai']['api_key'])
+chat_input = os.environ.get('CHAT_NAME', config.get('telegram', 'chat_name', fallback=None))
+bot_token = os.environ.get('BOT_TOKEN', config.get('telegram', 'bot_token', fallback=None))
+bot_channel = os.environ.get('BOT_CHANNEL', config.get('telegram', 'bot_channel', fallback=None))
+open_ai_key = os.environ.get('OPENAI_API_KEY', config.get('openai', 'api_key', fallback=None))
 
 async def main(chat_name):
     client = TelegramClient(session_name if session_name else StringSession(session_value), api_id, api_hash)
