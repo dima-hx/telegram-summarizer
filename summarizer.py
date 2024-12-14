@@ -3,16 +3,20 @@ import json
 import openai
 from typing import List
 
-prompt = f"""Here is ONE day (yyyy-mm-dd [DATE]) of message history our local community chat.
+prompt = f"""Here is ONE day (yyyy-mm-dd [DATE]) of message history in our local community chat.
 
-Your key role is to briefly summarize the day's chat history in one message with some keypoints. 
-Your choice of importance should be based on popularity of topic (discussions, comments, reactions), and on your personal belief that this is crucial for each residential member to know. 
+Your key role is briefly summarizing the day's chat history with keypoints and summarized descriptions. Provide complete information for each key topic.
+Your choice of importance should be based on the topic's importance, popularity (discussions, comments, reactions), and your personal belief that this is crucial for each residential member to know. 
 Put the most important topics first.
 
-Ignore advertisement. Ignore questions regarding some recommendations of services, products, etc. Ignore search for local services.
-Ignore jokes. Do not provide information on what members did and how react.
+Ignore advertisements or service recommendations. Ignore search for local services. Ignore jokes. Do not provide information on what members did and how they reacted.
 
-Reply in Ukrainian language.
+Mark no more than one key point with an emoji icon at the beginning if it helps to highlight the importance of topic.
+
+Do not hallucinate, do not mismatch topics. 
+
+Reply in Ukrainian language without grammar mistakes.
+
 ```
 [CHAT_HISTORY]
 ```
@@ -27,7 +31,7 @@ def summarize(open_ai_key: str, chat_history: str, date: datetime.date) -> tuple
     functions = [
         {
             "name": "process_summary",
-            "description": "Process the chat summary and extract key topics",
+            "description": "Process the chat and extract key topics with summary",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -51,7 +55,7 @@ def summarize(open_ai_key: str, chat_history: str, date: datetime.date) -> tuple
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": "You are a chat summarizer that extracts key topics."},
+            {"role": "system", "content": "You are a chat summarizer"},
             {"role": "user", "content": prompt_with_history}
         ],
         functions=functions,

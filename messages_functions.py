@@ -63,6 +63,9 @@ async def format_messages(messages):
         # Get message text
         text = message.text or ""
         
+        if text == "":  # Skip messages without text
+            continue
+        
         # Format reactions if present
         reactions_str = ""
         if message.reactions:
