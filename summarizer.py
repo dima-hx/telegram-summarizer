@@ -20,12 +20,18 @@ Reply in Ukrainian language without grammar mistakes.
 ```
 [CHAT_HISTORY]
 ```
+
+You can take into account the previous day's summary to avoid duplication of topics (or to continue them). Previous day's summary:
+```
+[PREVIOUS_DAY]
+```
 """
 
-def summarize(open_ai_key: str, chat_history: str, date: datetime.date) -> tuple[List[str], str]:
+def summarize(open_ai_key: str, chat_history: str, date: datetime.date, formatted_history: str) -> tuple[List[str], str]:
     # Replace backticks and prepare prompt
     chat_history = chat_history.replace("`", "")
     prompt_with_history = prompt.replace("[CHAT_HISTORY]", chat_history).replace("[DATE]", date.strftime("%Y-%m-%d"))
+    prompt_with_history = prompt_with_history.replace("[PREVIOUS_DAY]", formatted_history)
     
     # Define function schema
     functions = [
@@ -38,7 +44,7 @@ def summarize(open_ai_key: str, chat_history: str, date: datetime.date) -> tuple
                     "key_topics": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of key topics discussed"
+                        "description": "List of topics discussed with their summaries"
                     },
                     "title": {
                         "type": "string",
@@ -59,9 +65,17 @@ def summarize(open_ai_key: str, chat_history: str, date: datetime.date) -> tuple
             {"role": "user", "content": prompt_with_history}
         ],
         functions=functions,
-        function_call={"name": "process_summary"}
+        function_call={"name": "process_summary"},
     )
 
     # Parse and return the function call results
-    function_args = json.loads(response.choices[0].message.function_call.arguments)
-    return (function_args["key_topics"], function_args["title"])
+    try:
+        function_args = json.loads(response.choices[0].message.function_call.arguments)
+        key_topics = function_args.get("key_topics", [])
+        title = function_args.get("title", "Summary")
+    except (json.JSONDecodeError, KeyError, AttributeError) as e:
+        print(f"Error parsing response: {e}")
+        key_topics = []
+        title = "Error in Summary"
+
+    return (key_topics, title)

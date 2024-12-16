@@ -5,7 +5,7 @@ from telethon.sessions import StringSession
 import configparser
 import os
 
-from messages_functions import format_messages, get_chat_messages, get_output_message
+from messages_functions import format_messages, get_chat_messages, get_output_message, format_history
 from summarizer import summarize
 
 # Read configuration from config.ini
@@ -26,12 +26,15 @@ async def main(chat_name):
     await client.start()
 
     chat_info = await client.get_entity(chat_name)
+    bot_channel_info = await client.get_entity(bot_channel)
     
     session_string = client.session.save()
     print("Your session string is: ", session_string)
 
     target_date = datetime.now().date() - timedelta(days=1)
     #target_date = datetime(2024, 12, 5).date()  # Specific date
+
+    summary_messages_day_before = await get_chat_messages(client, bot_channel_info, target_date)
 
     messages = await get_chat_messages(client, chat_info, target_date)
     if not messages:
@@ -42,8 +45,9 @@ async def main(chat_name):
     if not formatted_messages:
         print("No messages found 2.")
         return
+    formatted_history = await format_history(summary_messages_day_before)
     
-    (key_topics, title) = summarize(open_ai_key, formatted_messages, target_date)
+    (key_topics, title) = summarize(open_ai_key, formatted_messages, target_date, formatted_history)
     if not key_topics:
         print("No key topics found.")
         return
@@ -52,7 +56,6 @@ async def main(chat_name):
     
     #Send a message to the channel
     await client.start(bot_token=bot_token)
-    bot_channel_info = await client.get_entity(bot_channel)
     await client.send_message(bot_channel_info, output_message)
 
     print(key_topics)

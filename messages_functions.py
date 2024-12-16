@@ -47,6 +47,13 @@ async def get_chat_messages(client, entity, target_date):
         
     return messages
 
+async def format_history(messages):
+    formatted = []
+    for message in messages:
+        if message.text:
+            formatted.append(message.text)
+    return "\n".join(formatted)
+
 async def format_messages(messages):
     formatted = []
     
