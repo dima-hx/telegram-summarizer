@@ -13,38 +13,26 @@ async def get_chat_messages(client, entity, target_date):
     Returns:
         List of messages from the specified date
     """
-    # Create datetime objects for start and end of the target date
-    start_time = datetime.combine(target_date, time.min)
-    end_time = datetime.combine(target_date, time.max)
-    
+    start_time = datetime.combine(datetime(2025, 1, 1).date(), time.min)
+    end_time = datetime.combine(datetime(2025, 12, 31).date(), time.max)
+
     messages = []
-    offset_id = 0
-    limit = 100  # Number of messages per request
     
-    while True:
-        # Get messages in chunks
-        history = await client.get_messages(
-            entity=entity,
-            offset_id=offset_id,
-            limit=limit,
-            reverse=False
-        )
+    async for message in client.iter_messages(entity=entity, reverse=False):
+        if message.date is None:
+            continue
         
-        if not history:
+        msg_date = message.date.replace(tzinfo=None)
+        
+        if msg_date < start_time:
+            continue
+        
+        if msg_date > end_time:
             break
-            
-        for message in history:
-            if message.date is None:
-                continue
-                
-            # Check if message is within target date
-            if start_time <= message.date.replace(tzinfo=None) <= end_time:
-                messages.append(message)
-            elif message.date.replace(tzinfo=None) < start_time:
-                return messages  # Return once we've passed the target date
-                
-        offset_id = history[-1].id
         
+        if start_time <= msg_date <= end_time:
+            messages.append(message)
+    
     return messages
 
 async def format_history(messages):
@@ -52,7 +40,7 @@ async def format_history(messages):
     for message in messages:
         if message.text:
             formatted.append(message.text)
-    return "\n".join(formatted)
+    return "\n[DAY_DELIMITER]\n".join(formatted)
 
 async def format_messages(messages):
     formatted = []

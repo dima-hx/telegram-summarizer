@@ -35,6 +35,7 @@ async def main(chat_name):
     #target_date = datetime(2024, 12, 5).date()  # Specific date
 
     summary_messages_day_before = await get_chat_messages(client, bot_channel_info, target_date)
+    formatted_history = await format_history(summary_messages_day_before)
 
     messages = await get_chat_messages(client, chat_info, target_date)
     if not messages:
@@ -55,10 +56,10 @@ async def main(chat_name):
     output_message = get_output_message(key_topics, title, len(messages), formatted_messages)
     
     #Send a message to the channel
-    await client.start(bot_token=bot_token)
-    await client.send_message(bot_channel_info, output_message)
+    #await client.start(bot_token=bot_token)
+    #await client.send_message(bot_channel_info, output_message)
 
-    print(key_topics)
+    print(output_message)
 
 
 asyncio.run(main(chat_name=chat_input))
