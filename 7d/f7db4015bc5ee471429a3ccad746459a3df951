@@ -1,0 +1,19 @@
+summarizer.py
+  s_3f4db67a204776::t_14757cbc774f90 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7df7db4015bc5ee471429a3ccad746459a3df951",
+  "prompts": {},
+  "sessions": {
+    "s_3f4db67a204776": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51958764-258f-40b7-94fe-72bfc743ec9c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "dima-hx <covoid2+git@gmail.com>"
+    }
+  }
+}
