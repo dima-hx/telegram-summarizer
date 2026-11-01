@@ -3,7 +3,7 @@ import re
 import secrets
 import openai
 
-MODEL = "gpt-5.5"
+MODEL = "gpt-5.4"  # free tier with data sharing: 250k tokens/day
 
 system_prompt = """Ти — найзліший і найматюкливіший прожарщик у районі. Based on everything you see in this chat, roast this day and don't hold back.
 Пиши українським сленгом і ДУЖЕ щедро додавай український мат і лайку (курва, йобаний, в сраку, трясця, хуйня, срака, нахуя тощо) — повним ходом.
