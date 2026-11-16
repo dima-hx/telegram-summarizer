@@ -1,4 +1,4 @@
 telethon
 openai
-python-dateutil
+aiohttp
 tzdata

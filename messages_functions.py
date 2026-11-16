@@ -1,5 +1,8 @@
 from datetime import datetime
 
+# footer of every daily summary; used to tell summaries apart from alerts in the channel
+DAILY_MARKER = "За цей день було"
+
 async def get_chat_messages(client, entity, start_time: datetime, end_time: datetime):
     """
     Retrieve messages from a specified chat entity within [start_time, end_time)
@@ -101,5 +104,5 @@ def get_output_message(summary: str, raw_messages_count: int, formatted_messages
 
     messages_word = plural(raw_messages_count, "повідомлення", "повідомлення", "повідомлень")
 
-    output_message = f"{summary}\n\n__За цей день було {raw_messages_count} {messages_word}{time_str}__"
+    output_message = f"{summary}\n\n__{DAILY_MARKER} {raw_messages_count} {messages_word}{time_str}__"
     return output_message

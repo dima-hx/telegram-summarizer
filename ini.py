@@ -1,73 +1,40 @@
-from datetime import datetime, time, timedelta
-from zoneinfo import ZoneInfo
+"""
+Local CLI for the daily summary (the Azure service runs app.py).
+
+    python ini.py --dry-run                     # print yesterday's summary
+    python ini.py --dry-run --date 2026-11-13   # print the summary for a specific day
+    python ini.py                               # post yesterday's summary (skips if already posted today)
+"""
+import argparse
 import asyncio
 import sys
-from telethon import TelegramClient
-from telethon.sessions import StringSession
-import configparser
-import os
+from datetime import date
 
-from messages_functions import format_messages, get_chat_messages, get_output_message, format_history
-from summarizer import summarize
+from config import load_config, make_client
+from daily import run_daily
+from summarizer import LLM
 
-# Read configuration from config.ini
-config = configparser.ConfigParser()
-config.read('config.ini')
 
-api_id = os.environ.get('API_ID', config.get('telegram', 'api_id', fallback=None))
-api_hash = os.environ.get('API_HASH', config.get('telegram', 'api_hash', fallback=None))
-session_name = config.get('telegram', 'session_name', fallback=None)
-session_value = os.environ.get('SESSION_VALUE')
-chat_input = os.environ.get('CHAT_NAME', config.get('telegram', 'chat_name', fallback=None))
-bot_channel = os.environ.get('BOT_CHANNEL', config.get('telegram', 'bot_channel', fallback=None))
-open_ai_key = os.environ.get('OPENAI_API_KEY', config.get('openai', 'api_key', fallback=None))
+async def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dry-run', action='store_true', help='print instead of posting')
+    parser.add_argument('--date', type=date.fromisoformat, help='day to summarize (default: yesterday)')
+    args = parser.parse_args()
 
-# Print the summary instead of posting it: python ini.py --dry-run
-dry_run = '--dry-run' in sys.argv
-
-KYIV = ZoneInfo('Europe/Kyiv')
-HISTORY_DAYS = 7
-
-async def main(chat_name):
-    client = TelegramClient(session_name if session_name else StringSession(session_value), api_id, api_hash)
+    cfg = load_config()
+    llm = LLM(cfg.open_ai_key)
+    client = make_client(cfg)
     await client.start()
+    try:
+        output = await run_daily(client, cfg, llm, state=None, target_date=args.date, dry_run=args.dry_run)
+    finally:
+        await client.disconnect()
 
-    chat_info = await client.get_entity(chat_name)
-    bot_channel_info = await client.get_entity(bot_channel)
-
-    target_date = datetime.now(KYIV).date() - timedelta(days=1)
-    #target_date = datetime(2024, 12, 5).date()  # Specific date
-    start_time = datetime.combine(target_date, time.min, tzinfo=KYIV)
-    end_time = start_time + timedelta(days=1)
-
-    # summaries posted during the last week (each one covers the day before it was posted)
-    summary_messages = await get_chat_messages(client, bot_channel_info, end_time - timedelta(days=HISTORY_DAYS), end_time)
-    formatted_history = await format_history(summary_messages, KYIV)
-
-    messages = await get_chat_messages(client, chat_info, start_time, end_time)
-    if not messages:
-        print("No messages found.")
-        return
-    messages.reverse()
-    formatted_messages = await format_messages(messages)
-    if not formatted_messages:
-        print("No messages found 2.")
-        return
-
-    summary = summarize(open_ai_key, formatted_messages, target_date, formatted_history)
-    if not summary:
-        print("Empty summary.")
-        return
-
-    output_message = get_output_message(summary, len(messages), formatted_messages)
-
-    if dry_run:
-        print(output_message)
-        return
-
-    # Send a message to the channel
-    await client.send_message(bot_channel_info, output_message)
-    print(f"Posted summary for {target_date}: {len(messages)} messages, {len(summary_messages)} previous summaries")
+    if output:
+        sys.stdout.reconfigure(encoding='utf-8')
+        print(output)
+        print(f"\n[{len(output)} chars, tokens: {llm.tokens}]")
 
 
-asyncio.run(main(chat_name=chat_input))
+if __name__ == '__main__':
+    asyncio.run(main())
