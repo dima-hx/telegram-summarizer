@@ -1,0 +1,49 @@
+alerts.py
+  s_d29f6abc634cf6::t_8188a5f464707a 161
+  s_d29f6abc634cf6::t_84aeab60e51a0d 14
+  s_d29f6abc634cf6::t_2b0ab01bdf46e4 164
+  s_d29f6abc634cf6::t_94ce689ce9c11a 186,188,190-202,204-205,208-212
+  s_d29f6abc634cf6::t_b5b9668abc83f1 239-241,243,245-248
+  s_d29f6abc634cf6::t_cda95731f22d68 206-207
+  s_d29f6abc634cf6::t_e17b7d7d7085b6 87-88,90-97
+  s_d29f6abc634cf6::t_581d2d934c1d0b 89,98-99
+  s_d29f6abc634cf6::t_d5c19398ef7827 100-105,107
+  s_d29f6abc634cf6::t_da10c8afec4ef6 106
+  s_d29f6abc634cf6::t_9478a05cd53fd3 183-184
+  s_d29f6abc634cf6::t_f9dbd1b41f4984 189
+  s_d29f6abc634cf6::t_a6881d68733996 21
+  s_d29f6abc634cf6::t_ba25eac8d8ef79 34-35
+  s_d29f6abc634cf6::t_45df4bfb8ddb48 298,300-301
+  s_d29f6abc634cf6::t_099c37314756a7 146-147
+  s_d29f6abc634cf6::t_ef09e3393fb298 132,137,139,141-144
+  s_d29f6abc634cf6::t_6667eacd33d1cb 52-56,59,62,64,68-69
+  s_d29f6abc634cf6::t_e3a27fcd2ef972 167,170-171,173
+  s_d29f6abc634cf6::t_66b739834c50fc 70-71
+summarizer.py
+  s_d29f6abc634cf6::t_b44d3a58fc781c 62-63
+  s_d29f6abc634cf6::t_446fe96268b862 76-77
+  s_d29f6abc634cf6::t_a8d241c127f365 97,100-105,107-117
+  s_d29f6abc634cf6::t_a123e0d3da0564 106
+  s_d29f6abc634cf6::t_dba3046a9d4fd9 204-205,208-219,222
+  s_d29f6abc634cf6::t_e8bfc172c103d4 220-221
+  s_d29f6abc634cf6::t_efb18d5b9d786d 58-60,64-66
+  s_d29f6abc634cf6::t_b8dfbea1767897 68
+  s_d29f6abc634cf6::t_f766904e07496a 61
+  s_d29f6abc634cf6::t_e24945de33fe5a 118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f7c9e0cb213463cbed426db0693dc2c61931a864",
+  "prompts": {},
+  "sessions": {
+    "s_d29f6abc634cf6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "742ec0a1-0c52-4d2d-92a0-99bdaad2de75",
+        "model": "unknown"
+      },
+      "human_author": "dima-hx <covoid2+git@gmail.com>"
+    }
+  }
+}
