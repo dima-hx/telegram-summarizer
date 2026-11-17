@@ -11,13 +11,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from config import KYIV, Config, load_config, make_client
 from state import State
-from summarizer import LLM, triage, compose_alert, clean_note
+from summarizer import LLM, triage, compose_alert, compose_update
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +31,8 @@ UPDATE_GAP = timedelta(minutes=30)    # min time between 'ongoing' updates of on
 MAX_UPDATES = 6                       # per alert, excluding the final 'resolved'
 KEEP_ALERTS = timedelta(days=2)       # resolved alerts stay in state for the next daily summary
 NIGHT = (23, 7)                       # silent posts between 23:00 and 07:00
+MIN_REPORT_LEN = 15                   # "опа", "+", "жесть" are reactions, not independent reports
+NO_UPDATE_CATEGORIES = {'scam', 'security'}  # warnings: post once, then let them auto-close
 
 
 @dataclass
@@ -46,15 +49,24 @@ def to_msg(message) -> Msg | None:
     return Msg(message.id, message.date, message.sender_id, message.text)
 
 
-def format_window(msgs: list[Msg], new_ids: set[int]) -> str:
+def format_window(msgs: list[Msg], new_ids: set[int], with_refs: bool = True) -> str:
+    """
+    Messages get short refs m1, m2… (mapped back to real ids by `make_refs`), clearly different
+    from author labels S1, S2…; with long Telegram ids the model mixed the two up.
+    """
     labels: dict[int | None, str] = {}
     lines = []
-    for m in msgs:
+    for k, m in enumerate(msgs, 1):
         label = labels.setdefault(m.sender_id, f"S{len(labels) + 1}")
         star = "*" if m.id in new_ids else ""
+        ref = f"m{k} " if with_refs else ""
         text = m.text.replace("\n", " ")[:500]
-        lines.append(f"{star}[#{m.id} {m.date.astimezone(KYIV):%H:%M} {label}] {text}")
+        lines.append(f"{star}[{ref}{m.date.astimezone(KYIV):%H:%M} {label}] {text}")
     return "\n".join(lines)
+
+
+def make_refs(msgs: list[Msg]) -> dict[int, int]:
+    return {k: m.id for k, m in enumerate(msgs, 1)}
 
 
 def format_open_alerts(alerts: list[dict]) -> str:
@@ -72,9 +84,27 @@ def is_night(now: datetime) -> bool:
     return h >= NIGHT[0] or h < NIGHT[1]
 
 
-def distinct_reporters(evidence: list, window: dict[int, Msg]) -> int:
-    """Count distinct authors among the evidence, within REPORTERS_SPAN of the newest one. Never trust the LLM's count."""
-    msgs = [window[i] for i in evidence if isinstance(i, int) and i in window and window[i].sender_id]
+def to_ids(values, refs: dict[int, int]) -> list[int]:
+    """Map the model's refs ("m12", "#m12", 12) back to real message ids; author labels ("S4") are ignored."""
+    out = []
+    for v in values if isinstance(values, list) else []:
+        s = str(v).strip().lstrip('#').lower()
+        if s.startswith('s'):
+            continue
+        digits = re.sub(r'\D', '', s)
+        if digits and int(digits) in refs:
+            out.append(refs[int(digits)])
+    return list(dict.fromkeys(out))
+
+
+def distinct_reporters(reporter_ids: list, window: dict[int, Msg]) -> int:
+    """
+    Count distinct authors of substantive reports, within REPORTERS_SPAN of the newest one.
+    Never trust the LLM's count: ids must exist in the window, short reactions don't count.
+    """
+    msgs = [window[i] for i in reporter_ids
+            if i in window and window[i].sender_id
+            and len(window[i].text.strip()) >= MIN_REPORT_LEN]
     if not msgs:
         return 0
     newest = max(m.date for m in msgs)
@@ -99,18 +129,22 @@ class AlertEngine:
             return
 
         window = {m.id: m for m in window_msgs}
+        refs = make_refs(window_msgs)
         result = triage(self.llm, self.cfg.triage_model, f"{now.astimezone(KYIV):%Y-%m-%d %H:%M}",
                         format_open_alerts(self.open_alerts()), format_window(window_msgs, new_ids))
 
         for upd in result['updates']:
-            await self._apply_update(upd, window, now)
+            await self._apply_update(upd, window, refs, new_ids, now)
         for new in result['new']:
-            await self._maybe_create(new, window, new_ids, now)
+            await self._maybe_create(new, window, refs, new_ids, now)
 
-    async def _maybe_create(self, new: dict, window: dict[int, Msg], new_ids: set[int], now: datetime):
-        evidence = [i for i in new.get('evidence') or [] if i in window]
+    async def _maybe_create(self, new: dict, window: dict[int, Msg], refs: dict[int, int], new_ids: set[int],
+                            now: datetime):
+        reporter_ids = to_ids(new.get('reporters') or new.get('evidence'), refs)
+        evidence = sorted(set(reporter_ids) | set(to_ids(new.get('evidence'), refs)))
         topic = str(new.get('topic') or '').strip()
-        reporters = distinct_reporters(evidence, window)
+        category = str(new.get('category') or 'other').strip().lower()
+        reporters = distinct_reporters(reporter_ids, window)
         day = now.astimezone(KYIV).date().isoformat()
         today_count = self.state['alerts_per_day'].get(day, 0)
 
@@ -124,16 +158,19 @@ class AlertEngine:
         elif today_count >= MAX_ALERTS_PER_DAY:
             reject = "daily cap reached"
         if reject:
-            log.info("Alert candidate rejected (%s): %s", reject, topic)
+            log.info("Alert candidate rejected (%s): %s | reporters=%s", reject, topic, new.get('reporters'))
             return
 
-        evidence_text = format_window(sorted((window[i] for i in evidence), key=lambda m: m.id), set())
+        evidence_text = format_window([window[i] for i in evidence], set(), with_refs=False)
         text = self.compose(self.llm, self.cfg.model, topic, str(new.get('where') or ''), evidence_text)
         if not text:
+            log.info("Alert candidate rejected (compose said SKIP): %s", topic)
             return
 
+        log.info("Alert candidate accepted [%s, %d reporters] %s — %s\n%s",
+                 category, reporters, topic, new.get('reason') or '', evidence_text)
         alert = {
-            'id': self.state['next_alert_id'], 'topic': topic, 'where': new.get('where') or '',
+            'id': self.state['next_alert_id'], 'topic': topic, 'category': category, 'where': new.get('where') or '',
             'reason': new.get('reason') or '', 'text': text, 'status': 'open', 'live': self.cfg.alerts_live,
             'opened_at': now.timestamp(), 'updated_at': now.timestamp(), 'reporters': reporters,
         }
@@ -143,16 +180,36 @@ class AlertEngine:
         self.state['alerts_per_day'][day] = today_count + 1
         log.info("Alert #%s posted (live=%s): %s", alert['id'], alert['live'], topic)
 
-    async def _apply_update(self, upd: dict, window: dict[int, Msg], now: datetime):
+    async def _apply_update(self, upd: dict, window: dict[int, Msg], refs: dict[int, int], new_ids: set[int],
+                            now: datetime):
         alert = next((a for a in self.open_alerts() if a['id'] == upd.get('alert_id')), None)
-        note = clean_note(str(upd.get('note') or ''))
-        if not alert or not note:
+        if not alert:
             return
-        resolved = upd.get('status') == 'resolved'
+        category = alert.get('category') or 'other'
+        evidence = to_ids(upd.get('evidence'), refs)
+
+        reject = None
+        if category in NO_UPDATE_CATEGORIES:
+            reject = f"no updates for {category} alerts"
+        elif str(upd.get('category') or '').strip().lower() != category:
+            reject = f"category mismatch ({upd.get('category')} vs {category})"
+        elif not set(evidence) & new_ids:
+            reject = "no fresh evidence"
+        elif (len(alert.get('notes', [])) >= MAX_UPDATES
+              or now.timestamp() - alert['updated_at'] < UPDATE_GAP.total_seconds()):
+            reject = "rate limit"
+        if reject:
+            log.info("Alert #%s update rejected (%s): %s", alert['id'], reject, upd.get('note'))
+            return
+
+        # the stronger model re-checks relevance and novelty and writes the line itself
+        result = compose_update(self.llm, self.cfg.model, alert['text'],
+                                format_window([window[i] for i in evidence], set(), with_refs=False))
+        if not result:
+            log.info("Alert #%s update rejected (compose said SKIP): %s", alert['id'], upd.get('note'))
+            return
+        note, resolved = result
         notes = alert.setdefault('notes', [])
-        if not resolved and (len(notes) >= MAX_UPDATES or now.timestamp() - alert['updated_at'] < UPDATE_GAP.total_seconds()):
-            log.info("Alert #%s update skipped (rate limit): %s", alert['id'], note)
-            return
         icon = "✅" if resolved else "🔄"
         notes.append(note)
         alert['text'] += f"\n{icon} {now.astimezone(KYIV):%H:%M} — {note}"
@@ -179,20 +236,16 @@ class LiveAlerts:
         self.engine = AlertEngine(cfg, llm, state, self._publish)
 
     async def _publish(self, kind: str, alert: dict, text: str, evidence_text: str):
-        now = datetime.now(KYIV)
-        if not alert['live']:
-            # shadow mode: show the decision to the owner, with the reasoning, in Saved Messages
-            if kind == 'new':
-                text = (f"🧪 ТЕСТОВЕ СПОВІЩЕННЯ #{alert['id']} (у канал не публікується)\n\n{text}\n\n"
-                        f"Чому: {alert['reason']}\nАвторів: {alert['reporters']}\n\nДокази:\n{evidence_text[:1500]}")
-                msg = await self.client.send_message('me', text, silent=is_night(now))
-                return msg.id
-            await self.client.send_message('me', f"🧪 Оновлення до #{alert['id']}:\n\n{text}", silent=True)
-            return None
+        # shadow mode posts the exact same text to Saved Messages and edits it the same way;
+        # the reasoning and evidence only go to the app log
+        target = self.channel if alert['live'] else 'me'
         if kind == 'new':
-            msg = await self.client.send_message(self.channel, text, silent=is_night(now))
+            msg = await self.client.send_message(target, text, silent=is_night(datetime.now(KYIV)))
             return msg.id
-        await self.client.edit_message(self.channel, alert['msg_id'], text)
+        try:
+            await self.client.edit_message(target, alert['msg_id'], text)
+        except Exception as e:  # e.g. the message was deleted by hand
+            log.warning("Could not edit alert #%s: %r", alert['id'], e)
         return None
 
     async def run_once(self):
@@ -242,11 +295,10 @@ async def replay(day_str: str, interval_min: int, compose: bool):
     state = {'alerts': [], 'alerts_per_day': {}, 'next_alert_id': 1}
 
     async def publish(kind, alert, text, evidence_text):
+        # prints exactly what the channel (or Saved Messages in shadow mode) would show
         t = datetime.fromtimestamp(alert['updated_at'], KYIV)
-        if kind == 'new':
-            print(f"===== {t:%H:%M} NEW #{alert['id']} ({alert['reporters']} authors) — {alert['reason']}\n{text}\n")
-        else:
-            print(f"----- {t:%H:%M} UPDATE #{alert['id']}: {text.splitlines()[-1]}\n")
+        label = "NEW POST" if kind == 'new' else "POST EDITED TO"
+        print(f"===== {t:%H:%M} {label} #{alert['id']} [{alert['category']}]\n{text}\n=====\n")
         return alert['id']
 
     def placeholder(llm_, model, topic, where, evidence):
